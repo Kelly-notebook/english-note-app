@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>English Note App</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 500px;
+      margin: auto;
+      padding: 1em;
+      background: #f8f9fa;
+    }
+    input, textarea, select, button {
+      width: 100%;
+      padding: 0.5em;
+      margin-top: 0.5em;
+    }
+    .note-item {
+      background: #ffffff;
+      padding: 0.5em;
+      margin: 0.5em 0;
+      border-left: 5px solid #007bff;
+    }
+    .note-item.colloquial { border-left-color: #28a745; }
+    .note-item.vocabulary { border-left-color: #ffc107; }
+    .note-actions {
+      display: flex;
+      gap: 0.3em;
+      margin-top: 0.3em;
+    }
+  </style>
+</head>
+<body>
+  <h2>📘 English Note</h2>
+  <input id="englishInput" type="text" placeholder="Enter English word or sentence" />
+  <textarea id="noteInput" placeholder="Optional: add meaning or note"></textarea>
+  <select id="category">
+    <option value="colloquial">Colloquial</option>
+    <option value="vocabulary">New Vocabulary</option>
+  </select>
+  <button onclick="saveNote()">Save</button>
+  <input id="searchInput" type="text" placeholder="Search notes..." oninput="showNotes()" />
+
+  <h4>Export Notes</h4>
+  <input type="date" id="startDate" /> to <input type="date" id="endDate" />
+  <button onclick="openExportPage()">📤 Export</button>
+
+  <hr />
+  <h3>🗂️ My Notes</h3>
+  <div id="noteList"></div>
+
+  <script>
+    let editingIndex = null;
+
+    function saveNote() {
+      const eng = document.getElementById("englishInput").value.trim();
+      const note = document.getElementById("noteInput").value.trim();
+      const cat = document.getElementById("category").value;
+      if (!eng) return;
+
+      const timestamp = new Date().toISOString();
+      const item = { eng, note, category: cat, time: timestamp };
+
+      let notes = JSON.parse(localStorage.getItem("myNotes") || "[]");
+      if (editingIndex !== null) {
+        notes[editingIndex] = item;
+        editingIndex = null;
+      } else {
+        notes.unshift(item);
+      }
+
+      localStorage.setItem("myNotes", JSON.stringify(notes));
+      resetForm();
+      showNotes();
+    }
+
+    function deleteNote(index) {
+      let notes = JSON.parse(localStorage.getItem("myNotes") || "[]");
+      notes.splice(index, 1);
+      localStorage.setItem("myNotes", JSON.stringify(notes));
+      showNotes();
+    }
+
+    function editNote(index) {
+      let notes = JSON.parse(localStorage.getItem("myNotes") || "[]");
+      const item = notes[index];
+      document.getElementById("englishInput").value = item.eng;
+      document.getElementById("noteInput").value = item.note;
+      document.getElementById("category").value = item.category;
+      editingIndex = index;
+    }
+
+    function speak(text) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'en-US';
+      speechSynthesis.speak(utterance);
+    }
+
+    function resetForm() {
+      document.getElementById("englishInput").value = "";
+      document.getElementById("noteInput").value = "";
+      document.getElementById("category").value = "colloquial";
+    }
+
+    function showNotes() {
+      let notes = JSON.parse(localStorage.getItem("myNotes") || "[]");
+      const keyword = document.getElementById("searchInput").value.toLowerCase();
+      const list = document.getElementById("noteList");
+      list.innerHTML = "";
+
+      notes.forEach((note, index) => {
+        if (note.eng.toLowerCase().includes(keyword) || (note.note && note.note.toLowerCase().includes(keyword))) {
+          const div = document.createElement("div");
+          div.className = `note-item ${note.category}`;
+          div.innerHTML = `
+            <strong>${note.eng}</strong><br/>
+            <small>${note.note || ""}</small><br/>
+            <em>${new Date(note.time).toLocaleString()}</em>
+            <div class="note-actions">
+              <button onclick="speak('${note.eng}')">🐰</button>
+              <button onclick="editNote(${index})">✏️</button>
+              <button onclick="deleteNote(${index})">🗑️</button>
+            </div>
+          `;
+          list.appendChild(div);
+        }
+      });
+    }
+
+    function openExportPage() {
+      const start = new Date(document.getElementById("startDate").value);
+      const end = new Date(document.getElementById("endDate").value);
+      if (!start || !end) return;
+
+      let notes = JSON.parse(localStorage.getItem("myNotes") || "[]");
+      const filtered = notes.filter(n => {
+        const t = new Date(n.time);
+        return t >= start && t <= end;
+      });
+
+      const win = window.open();
+      win.document.write(`
+        <html><head><title>Exported Notes</title>
+        <style>
+          body { font-family: sans-serif; padding: 1em; background: #f9f9f9; }
+          .note-item { margin-bottom: 1em; padding: 0.5em; background: #fff; border-left: 5px solid #007bff; }
+          .note-item.colloquial { border-left-color: #28a745; }
+          .note-item.vocabulary { border-left-color: #ffc107; }
+        </style>
+        </head><body>
+        <h3>📤 Exported Notes</h3>
+        ${filtered.map(n => `
+          <div class='note-item ${n.category}'>
+            <strong>${n.eng}</strong><br/>
+            <small>${n.note || ""}</small><br/>
+            <em>${new Date(n.time).toLocaleString()}</em>
+          </div>
+        `).join('')}
+        </body></html>
+      `);
+      win.document.close();
+    }
+
+    window.onload = showNotes;
+  </script>
+</body>
+</html>
